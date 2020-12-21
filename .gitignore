@@ -1,6 +1,6 @@
 /target
 debug/
 tmp/*
-!./tmp/.keep
+!tmp/.keep
 
 
