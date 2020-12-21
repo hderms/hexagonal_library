@@ -1,0 +1,12 @@
+[package]
+name = "hexagonal_library"
+version = "0.1.0"
+authors = ["Dermot Haughey <hderms@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+blake3="0.3.7"
+tempfile="3.1.0"
