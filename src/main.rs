@@ -10,6 +10,7 @@ fn main() {
     let mut temp_file = NamedTempFile::new().unwrap();
     let start = Instant::now();
     let prefix = Path::new("./tmp");
+
     //calculate the hash while also streaming STDIN to a temporary file
     let hash = {
         let mut locked = stdin.lock();
