@@ -9,9 +9,9 @@ description="Toy application to experiment with content-addressable file storage
 name = "hexagonal-server"
 path = "src/server.rs"
 
-# [[bin]]
-# name = "hexagonal-client"
-# path = "src/client.rs"
+[[bin]]
+name = "hexagonal-client"
+path = "src/client.rs"
 
 
 [dependencies]
@@ -28,5 +28,8 @@ prost = "0.6"
 # async, gRPC dependency
 tokio = { version = "0.2", features = ["macros"] }
 
+futures-util = "0.3.8"
+
+async-stream="0.3.0"
 [build-dependencies]
 tonic-build = "0.3"
