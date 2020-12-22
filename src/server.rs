@@ -19,7 +19,7 @@ impl FileLibrary for FileLibraryS {
 
     async fn get_file(
         &self,
-        request: Request<GetImageRequest>, 
+        request: Request<GetImageRequest>,
     ) -> Result<Response<Self::GetFileStream>, Status> {
         println!("Got a request: {:?}", request);
 
