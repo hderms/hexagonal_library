@@ -1,0 +1,17 @@
+syntax="proto3";
+package hexagonal;
+
+message UploadFileRequest{
+    bytes chunk = 1;
+}
+
+message GetImageChunk{
+    bytes chunk = 1;
+}
+message Ack {
+    bool ok = 1;
+}
+service FileServer {
+    rpc UploadFile(stream UploadFileRequest) returns (Ack);
+    rpc GetFile(GetImageRequest) returns (stream GetImageChunk);
+}
