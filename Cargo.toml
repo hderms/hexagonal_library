@@ -9,9 +9,9 @@ description="Toy application to experiment with content-addressable file storage
 name = "hexagonal-server"
 path = "src/server.rs"
 
-[[bin]]
-name = "hexagonal-client"
-path = "src/client.rs"
+# [[bin]]
+# name = "hexagonal-client"
+# path = "src/client.rs"
 
 
 [dependencies]
