@@ -5,7 +5,7 @@ use hexagonal::file_library_client::FileLibraryClient;
 use hexagonal::UploadFileRequest;
 use std::io::Read;
 
-use log::{info, trace};
+use log::{debug, info, trace};
 
 pub mod hexagonal {
     tonic::include_proto!("hexagonal");
@@ -25,13 +25,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let outbound = stream! {
         loop {
             let bytes_read: usize = stdin.read(&mut buffer).unwrap();
-            trace!("Read {} bytes from STDIN", bytes_read);
+            debug!("Read {} bytes from STDIN", bytes_read);
             if (bytes_read > 0) {
                 yield UploadFileRequest{
                     chunk: (&buffer[..bytes_read]).to_vec()
                 };
             } else {
-            trace!("End of STDIN");
+                debug!("End of STDIN");
                 break;
             }
         }
