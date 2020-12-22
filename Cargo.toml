@@ -3,10 +3,30 @@ name = "hexagonal_library"
 version = "0.1.0"
 authors = ["Dermot Haughey <hderms@gmail.com>"]
 edition = "2018"
+description="Toy application to experiment with content-addressable file storage and gRPC streaming"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "hexagonal-server"
+path = "src/server.rs"
+
+[[bin]]
+name = "hexagonal-client"
+path = "src/client.rs"
+
 
 [dependencies]
-
+# fast, non-cryptographic hashing
 blake3="0.3.7"
+
+# portable method of dealing with temporary files
 tempfile="3.1.0"
+
+# gRPC
+tonic = "0.3"
+prost = "0.6"
+
+# async, gRPC dependency
+tokio = { version = "0.2", features = ["macros"] }
+
+[build-dependencies]
+tonic-build = "0.3"
