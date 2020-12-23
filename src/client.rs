@@ -59,14 +59,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("now getting that same file back:");
     let start_download = Instant::now();
     let mut file_stream = client
-        .get_file(Request::new(GetFileRequest { hash: hash }))
+        .get_file(Request::new(GetFileRequest { hash }))
         .await?
         .into_inner();
 
     info!("started stream");
     let mut stdout = io::stdout();
     while let Some(chunk) = file_stream.message().await? {
-        stdout.write(&chunk.chunk)?;
+        stdout.write_all(&chunk.chunk)?;
     }
 
     let duration = start_download.elapsed();

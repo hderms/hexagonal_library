@@ -4,13 +4,13 @@ use blake3::Hasher;
 use futures_util::StreamExt;
 use hexagonal::file_library_server::{FileLibrary, FileLibraryServer};
 use hexagonal::{Ack, GetFileChunk, GetFileRequest, UploadFileRequest};
-use std::{fs, io::Read, io::Write, path::Path, thread::sleep};
+use std::{fs, io::Read, io::Write, path::Path};
 use tempfile::NamedTempFile;
 use tokio::sync::mpsc;
 mod directory;
 use directory::{get_directory_from_hash, get_directory_from_string};
 
-use log::{debug, info, trace};
+use log::debug;
 pub mod hexagonal {
     tonic::include_proto!("hexagonal");
 }
@@ -33,8 +33,8 @@ impl FileLibrary for FileLibraryS {
         let prefix = Path::new("./tmp");
         let directory_path = prefix.join(directory_name);
 
-        let mut file_path = directory_path.clone();
-        file_path.push(hash.clone());
+        let mut file_path = directory_path;
+        file_path.push(hash);
         let mut file = fs::File::open(file_path)?;
         let (mut tx, rx) = mpsc::channel(UPLOAD_CHANNEL_BUFFER_SIZE);
         debug!(
@@ -71,7 +71,7 @@ impl FileLibrary for FileLibraryS {
         while let Some(chunk) = stream.next().await {
             let c: UploadFileRequest = chunk?;
             hasher.update(&c.chunk);
-            temp_file.write(&c.chunk).unwrap();
+            temp_file.write_all(&c.chunk).unwrap();
         }
 
         temp_file.flush().unwrap();
@@ -83,7 +83,7 @@ impl FileLibrary for FileLibraryS {
         let directory_path = prefix.join(directory_name);
         fs::create_dir(directory_path.clone()).unwrap();
 
-        let mut file_path = directory_path.clone();
+        let mut file_path = directory_path;
         file_path.push(hash.to_hex().to_string());
 
         //rename the temporary file

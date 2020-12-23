@@ -5,10 +5,6 @@ pub fn get_directory_from_hash(hash: Hash) -> PathBuf {
     get_directory_from_string(first_chars)
 }
 
-pub fn get_directory_from_vec(hash_vec: Vec<u8>) -> PathBuf {
-    let first_chars = String::from_utf8(hash_vec).unwrap();
-    get_directory_from_string(first_chars)
-}
 pub fn get_directory_from_string(string: String) -> PathBuf {
     let s: String = string.chars().take(2).collect();
     let mut path = PathBuf::new();
