@@ -3,12 +3,12 @@ use tonic::{transport::Server, Request, Response, Status};
 use blake3::Hasher;
 use futures_util::StreamExt;
 use hexagonal::file_library_server::{FileLibrary, FileLibraryServer};
-use hexagonal::{Ack, GetImageChunk, GetImageRequest, UploadFileRequest};
-use std::{io::Write, thread::sleep};
+use hexagonal::{Ack, GetFileChunk, GetFileRequest, UploadFileRequest};
+use std::{fs, io::Write, io::Read, path::Path, thread::sleep};
 use tempfile::NamedTempFile;
 use tokio::sync::mpsc;
 mod directory;
-use directory::get_directory_from_hash;
+use directory::{get_directory_from_hash, get_directory_from_string};
 
 pub mod hexagonal {
     tonic::include_proto!("hexagonal");
@@ -19,15 +19,36 @@ pub struct FileLibraryS {}
 
 #[tonic::async_trait]
 impl FileLibrary for FileLibraryS {
-    type GetFileStream = mpsc::Receiver<Result<GetImageChunk, Status>>;
+    type GetFileStream = mpsc::Receiver<Result<GetFileChunk, Status>>;
 
     async fn get_file(
         &self,
-        request: Request<GetImageRequest>,
+        request: Request<GetFileRequest>,
     ) -> Result<Response<Self::GetFileStream>, Status> {
         println!("Got a request: {:?}", request);
+        let hash = request.into_inner().hash;
 
-        unimplemented!();
+        let directory_name = get_directory_from_string(hash.clone());
+        let prefix = Path::new("./tmp");
+        let directory_path = prefix.join(directory_name);
+
+        let mut file_path = directory_path.clone();
+        file_path.push(hash.clone());
+        let mut file = fs::File::open(file_path )?;
+        let (mut tx, rx) = mpsc::channel(4);
+        let mut buffer = [0u8; 4096];
+        loop {
+            let bytes_read = file.read(&mut buffer).unwrap();
+            if (bytes_read > 0) {
+                let vectored =  (&buffer[..bytes_read]).to_vec();
+                let image_chunk = GetFileChunk{chunk: vectored};
+                tx.send(Ok(image_chunk)).await.unwrap();
+
+            } else {
+                break;
+            }
+        }
+        Ok(Response::new(rx))
     }
 
     async fn upload_file(

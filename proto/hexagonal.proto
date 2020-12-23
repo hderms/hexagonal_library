@@ -4,11 +4,11 @@ package hexagonal;
 message UploadFileRequest{
     bytes chunk = 1;
 }
-message GetImageRequest{
-    bytes hash = 1;
+message GetFileRequest{
+    string hash = 1;
 }
 
-message GetImageChunk{
+message GetFileChunk{
     bytes chunk = 1;
 }
 
@@ -18,5 +18,5 @@ message Ack {
 }
 service FileLibrary {
     rpc UploadFile(stream UploadFileRequest) returns (Ack);
-    rpc GetFile(GetImageRequest) returns (stream GetImageChunk);
+    rpc GetFile(GetFileRequest) returns (stream GetFileChunk);
 }

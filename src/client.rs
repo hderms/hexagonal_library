@@ -2,7 +2,7 @@ use tonic::Request;
 
 use async_stream::stream;
 use hexagonal::file_library_client::FileLibraryClient;
-use hexagonal::UploadFileRequest;
+use hexagonal::{UploadFileRequest, GetFileRequest};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::{io::Read, time::Instant};
@@ -45,14 +45,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let response = client.upload_file(Request::new(outbound)).await?;
     let duration = start.elapsed();
+    let hash = response.into_inner().hash;
     info!(
         "the hash returned from the server is {}",
-        response.into_inner().hash
+        hash
     );
     info!("took {} time", duration.as_millis());
     let duration_secs = duration.as_millis();
     let throughput = Arc::try_unwrap(counter).unwrap().into_inner() as u128 / duration_secs;
     info!("throughput: {} B/sec ", throughput);
+
+    info!("now getting that same file back:");
+    let mut file_stream = client.get_file(Request::new(GetFileRequest{hash: hash})).await?.into_inner();
+
+    while let Some(chunk) = file_stream.message().await? {
+        println!("NOTE = {:?}", chunk);
+    }
 
     Ok(())
 }
