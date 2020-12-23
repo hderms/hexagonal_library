@@ -4,6 +4,8 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use tempfile::NamedTempFile;
+mod directory;
+use directory::get_directory_from_hash;
 
 fn main() {
     let stdin = io::stdin();
@@ -55,12 +57,4 @@ fn process_stream<T: Read>(read: &mut T, temp_file: &mut NamedTempFile) -> Hashe
         }
     }
     return hasher;
-}
-
-fn get_directory_from_hash(hash: Hash) -> PathBuf {
-    let first_chars = hash.to_hex().to_string();
-    let str: String = first_chars.chars().take(2).collect();
-    let mut path = PathBuf::new();
-    path.push(str);
-    path
 }
