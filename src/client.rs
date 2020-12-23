@@ -3,7 +3,9 @@ use tonic::Request;
 use async_stream::stream;
 use hexagonal::file_library_client::FileLibraryClient;
 use hexagonal::UploadFileRequest;
-use std::io::Read;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::{io::Read, time::Instant};
 
 use log::{debug, info, trace};
 
@@ -21,10 +23,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     trace!("Opening STDIN");
     let mut stdin = std::io::stdin();
 
-    let mut buffer = [0u8; 1024];
+    let mut buffer = [0u8; 32000];
+    let start = Instant::now();
+    let file_size = Arc::new(AtomicUsize::new(1));
+    let counter = file_size.clone();
     let outbound = stream! {
         loop {
             let bytes_read: usize = stdin.read(&mut buffer).unwrap();
+            file_size.clone().fetch_add(bytes_read, Ordering::SeqCst );
             debug!("Read {} bytes from STDIN", bytes_read);
             if (bytes_read > 0) {
                 yield UploadFileRequest{
@@ -38,10 +44,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let response = client.upload_file(Request::new(outbound)).await?;
+    let duration = start.elapsed();
     info!(
         "the hash returned from the server is {}",
         response.into_inner().hash
     );
+    info!("took {} time", duration.as_millis());
+    let duration_secs = duration.as_millis();
+    let throughput = Arc::try_unwrap(counter).unwrap().into_inner() as u128 / duration_secs;
+    info!("throughput: {} B/sec ", throughput);
 
     Ok(())
 }
