@@ -2,10 +2,13 @@ use tonic::Request;
 
 use async_stream::stream;
 use hexagonal::file_library_client::FileLibraryClient;
-use hexagonal::{UploadFileRequest, GetFileRequest};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use hexagonal::{GetFileRequest, UploadFileRequest};
 use std::sync::Arc;
-use std::{io::Read, time::Instant};
+use std::{
+    io,
+    sync::atomic::{AtomicUsize, Ordering},
+};
+use std::{io::Read, io::Write, time::Instant};
 
 use log::{debug, info, trace};
 
@@ -24,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut stdin = std::io::stdin();
 
     let mut buffer = [0u8; 32000];
-    let start = Instant::now();
+    let start_upload = Instant::now();
     let file_size = Arc::new(AtomicUsize::new(1));
     let counter = file_size.clone();
     let outbound = stream! {
@@ -44,23 +47,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let response = client.upload_file(Request::new(outbound)).await?;
-    let duration = start.elapsed();
+    let duration = start_upload.elapsed();
     let hash = response.into_inner().hash;
-    info!(
-        "the hash returned from the server is {}",
-        hash
-    );
-    info!("took {} time", duration.as_millis());
+    info!("the hash returned from the server is {}", hash);
+    info!("upload took {} ms", duration.as_millis());
     let duration_secs = duration.as_millis();
-    let throughput = Arc::try_unwrap(counter).unwrap().into_inner() as u128 / duration_secs;
+    let bytes = Arc::try_unwrap(counter).unwrap().into_inner();
+    let throughput = bytes as u128 / duration_secs;
     info!("throughput: {} B/sec ", throughput);
 
     info!("now getting that same file back:");
-    let mut file_stream = client.get_file(Request::new(GetFileRequest{hash: hash})).await?.into_inner();
+    let start_download = Instant::now();
+    let mut file_stream = client
+        .get_file(Request::new(GetFileRequest { hash: hash }))
+        .await?
+        .into_inner();
 
+    info!("started stream");
+    let mut stdout = io::stdout();
     while let Some(chunk) = file_stream.message().await? {
-        println!("NOTE = {:?}", chunk);
+        stdout.write(&chunk.chunk)?;
     }
+
+    let duration = start_download.elapsed();
+    info!("download took {} ms", duration.as_millis());
+
+    let throughput = bytes as u128 / duration.as_millis();
+    info!("throughput: {} B/sec ", throughput);
 
     Ok(())
 }
