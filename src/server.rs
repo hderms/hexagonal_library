@@ -1,6 +1,6 @@
 use tonic::{transport::Server, Request, Response, Status};
 
-use blake3::Hasher;
+use blake3::{Hash, Hasher};
 use futures_util::StreamExt;
 use hexagonal::file_library_server::{FileLibrary, FileLibraryServer};
 use hexagonal::{Ack, GetFileChunk, GetFileRequest, UploadFileRequest};
@@ -14,9 +14,19 @@ use log::{debug, info};
 pub mod hexagonal {
     tonic::include_proto!("hexagonal");
 }
+use std::collections::HashSet;
+use std::sync::RwLock;
 
-#[derive(Debug, Default)]
-pub struct FileLibraryS {}
+#[derive(Debug)]
+pub struct FileLibraryS {
+    file_set: RwLock<HashSet<Hash>>,
+}
+impl FileLibraryS {
+    fn new() -> FileLibraryS {
+        let file_set = RwLock::new(HashSet::new());
+        FileLibraryS { file_set }
+    }
+}
 
 const UPLOAD_CHANNEL_BUFFER_SIZE: usize = 4;
 const READ_BUFFER_SIZE: usize = 4096;
@@ -46,7 +56,11 @@ impl FileLibrary for FileLibraryS {
                 debug!("looping through reading of file, bytes read {}", bytes_read);
                 if (bytes_read > 0) {
                     let vectored_read = (&buffer[..bytes_read]).to_vec();
-                    tx.send(Ok(GetFileChunk { chunk: vectored_read })).await.unwrap();
+                    tx.send(Ok(GetFileChunk {
+                        chunk: vectored_read,
+                    }))
+                    .await
+                    .unwrap();
                 } else {
                     info!("File stream out of bytes.");
                     break;
@@ -72,17 +86,36 @@ impl FileLibrary for FileLibraryS {
         }
 
         temp_file.flush().unwrap();
-        let hash = hasher.finalize();
+        let hash: Hash = hasher.finalize();
+
+        let reply = hexagonal::Ack {
+            ok: true,
+            hash: hash.to_hex().to_string(),
+        };
+        let mut should_write = false;
+
+        {
+            info!("trying to take out read lock");
+            let set = self.file_set.read().unwrap();
+            if (*set).contains(&hash) {
+                info!("old hash, not writing to disk");
+                should_write = false;
+            } else {
+                info!("new hash, writing to disk");
+                should_write = true;
+            }
+        }
+        if (should_write) {
+            info!("trying to take out write lock");
+            let mut set = self.file_set.write().unwrap();
+            info!("new hash, writing to disk");
+            (*set).insert(hash);
+        }
 
         let file_path = get_file_path_from_hash(STORAGE_PATH, hash);
 
         //Write the file to the intended location by renaming
         fs::rename(temp_file.path(), file_path).unwrap();
-
-        let reply = hexagonal::Ack {
-            ok: true,
-            hash: hasher.finalize().to_hex().to_string(),
-        };
 
         Ok(Response::new(reply))
     }
@@ -91,7 +124,7 @@ impl FileLibrary for FileLibraryS {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     let addr = "127.0.0.1:10000".parse()?;
-    let greeter = FileLibraryS::default();
+    let greeter = FileLibraryS::new();
     create_all_directories(STORAGE_PATH);
 
     Server::builder()
