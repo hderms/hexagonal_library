@@ -8,7 +8,7 @@ use std::{fs, io::Read, io::Write};
 use tempfile::NamedTempFile;
 use tokio::sync::mpsc;
 mod directory;
-use directory::{get_directory_from_hash, get_file_path_from_hash};
+use directory::{create_all_directories, get_directory_from_hash, get_file_path_from_hash};
 
 use log::{debug, info};
 pub mod hexagonal {
@@ -75,7 +75,6 @@ impl FileLibrary for FileLibraryS {
         let hash = hasher.finalize();
 
         let file_path = get_file_path_from_hash(STORAGE_PATH, hash);
-        let directory_path = get_directory_from_hash(hash.clone());
 
         //Write the file to the intended location by renaming
         fs::rename(temp_file.path(), file_path).unwrap();
@@ -93,6 +92,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     let addr = "127.0.0.1:10000".parse()?;
     let greeter = FileLibraryS::default();
+    create_all_directories(STORAGE_PATH);
 
     Server::builder()
         .add_service(FileLibraryServer::new(greeter))
