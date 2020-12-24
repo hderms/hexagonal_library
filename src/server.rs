@@ -4,13 +4,13 @@ use blake3::Hasher;
 use futures_util::StreamExt;
 use hexagonal::file_library_server::{FileLibrary, FileLibraryServer};
 use hexagonal::{Ack, GetFileChunk, GetFileRequest, UploadFileRequest};
-use std::{fs, io::Read, io::Write, path::Path};
+use std::{fs, io::Read, io::Write};
 use tempfile::NamedTempFile;
 use tokio::sync::mpsc;
 mod directory;
-use directory::{get_directory_from_hash, get_directory_from_string};
+use directory::{get_directory_from_hash, get_file_path_from_hash};
 
-use log::debug;
+use log::{debug, info};
 pub mod hexagonal {
     tonic::include_proto!("hexagonal");
 }
@@ -19,6 +19,8 @@ pub mod hexagonal {
 pub struct FileLibraryS {}
 
 const UPLOAD_CHANNEL_BUFFER_SIZE: usize = 4;
+const READ_BUFFER_SIZE: usize = 4096;
+const STORAGE_PATH: &str = "./tmp";
 #[tonic::async_trait]
 impl FileLibrary for FileLibraryS {
     type GetFileStream = mpsc::Receiver<Result<GetFileChunk, Status>>;
@@ -29,29 +31,24 @@ impl FileLibrary for FileLibraryS {
     ) -> Result<Response<Self::GetFileStream>, Status> {
         debug!("Got a request: {:?}", request);
         let hash = request.into_inner().hash;
-        let directory_name = get_directory_from_string(hash.clone());
-        let prefix = Path::new("./tmp");
-        let directory_path = prefix.join(directory_name);
-
-        let mut file_path = directory_path;
-        file_path.push(hash);
+        let file_path = directory::get_file_path(STORAGE_PATH, hash);
         let mut file = fs::File::open(file_path)?;
         let (mut tx, rx) = mpsc::channel(UPLOAD_CHANNEL_BUFFER_SIZE);
         debug!(
             "opened channel with buffer size {}",
             UPLOAD_CHANNEL_BUFFER_SIZE
         );
-        let mut buffer = [0u8; 4096];
+        let mut buffer = [0u8; READ_BUFFER_SIZE];
 
         tokio::spawn(async move {
             loop {
                 let bytes_read = file.read(&mut buffer).unwrap();
                 debug!("looping through reading of file, bytes read {}", bytes_read);
                 if (bytes_read > 0) {
-                    let vectored = (&buffer[..bytes_read]).to_vec();
-                    let image_chunk = GetFileChunk { chunk: vectored };
-                    tx.send(Ok(image_chunk)).await.unwrap();
+                    let vectored_read = (&buffer[..bytes_read]).to_vec();
+                    tx.send(Ok(GetFileChunk { chunk: vectored_read })).await.unwrap();
                 } else {
+                    info!("File stream out of bytes.");
                     break;
                 }
             }
@@ -77,18 +74,11 @@ impl FileLibrary for FileLibraryS {
         temp_file.flush().unwrap();
         let hash = hasher.finalize();
 
-        let directory_name = get_directory_from_hash(hash);
+        let file_path = get_file_path_from_hash(STORAGE_PATH, hash);
+        let directory_path = get_directory_from_hash(hash.clone());
 
-        let prefix = Path::new("./tmp");
-        let directory_path = prefix.join(directory_name);
-        fs::create_dir(directory_path.clone()).unwrap();
-
-        let mut file_path = directory_path;
-        file_path.push(hash.to_hex().to_string());
-
-        //rename the temporary file
-
-        fs::rename(temp_file.path(), file_path.clone()).unwrap();
+        //Write the file to the intended location by renaming
+        fs::rename(temp_file.path(), file_path).unwrap();
 
         let reply = hexagonal::Ack {
             ok: true,
